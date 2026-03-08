@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0e7490"/>
+      <stop offset="100%" style="stop-color:#1e3a5f"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Outer ring (çini motif) -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="white" stroke-width="8" opacity="0.3"/>
+  <!-- Inner decorative circle -->
+  <circle cx="256" cy="256" r="130" fill="none" stroke="white" stroke-width="4" opacity="0.2"/>
+  <!-- Petal/tulip shapes (İznik çini lale motifi) -->
+  <g fill="white" opacity="0.9">
+    <!-- Top -->
+    <ellipse cx="256" cy="130" rx="22" ry="40" />
+    <!-- Bottom -->
+    <ellipse cx="256" cy="382" rx="22" ry="40" />
+    <!-- Left -->
+    <ellipse cx="130" cy="256" rx="40" ry="22" />
+    <!-- Right -->
+    <ellipse cx="382" cy="256" rx="40" ry="22" />
+  </g>
+  <!-- Diagonal petals -->
+  <g fill="white" opacity="0.5">
+    <ellipse cx="167" cy="167" rx="18" ry="32" transform="rotate(-45 167 167)" />
+    <ellipse cx="345" cy="167" rx="18" ry="32" transform="rotate(45 345 167)" />
+    <ellipse cx="167" cy="345" rx="18" ry="32" transform="rotate(45 167 345)" />
+    <ellipse cx="345" cy="345" rx="18" ry="32" transform="rotate(-45 345 345)" />
+  </g>
+  <!-- Center circle -->
+  <circle cx="256" cy="256" r="45" fill="white" opacity="0.95"/>
+  <!-- Center İ letter -->
+  <text x="256" y="274" text-anchor="middle" font-family="Arial, sans-serif" font-size="52" font-weight="bold" fill="#0e7490">İ</text>
+</svg>

@@ -1,0 +1,20 @@
+{
+  "name": "İznikle - Yerel İşletme Rehberi",
+  "short_name": "İznikle",
+  "description": "İznik'in yerel işletmelerini, esnaflarını ve el sanatı ustalarını keşfedin.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1f3b",
+  "theme_color": "#0ea5b8",
+  "orientation": "portrait-primary",
+  "categories": ["business", "shopping", "lifestyle"],
+  "lang": "tr",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
