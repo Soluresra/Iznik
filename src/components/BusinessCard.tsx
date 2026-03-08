@@ -43,10 +43,15 @@ export default function BusinessCard({ business }: BusinessCardProps) {
         )}
 
         {business.address && (
-          <div className="flex items-center gap-1.5 mt-3 text-xs text-gray-400">
+          <a
+            href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(business.address)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 mt-3 text-xs text-gray-400 hover:text-iznik-600 transition-colors cursor-pointer group/addr"
+          >
             <MapPin size={13} />
-            <span>{business.address}</span>
-          </div>
+            <span className="underline-offset-2 group-hover/addr:underline">{business.address}</span>
+          </a>
         )}
 
         {/* Action buttons */}

@@ -29,6 +29,15 @@ export interface BusinessWithCategory extends Business {
   categories: Category | null
 }
 
+export interface MembershipRequest {
+  id: string
+  phone: string
+  status: 'pending' | 'contacted' | 'completed'
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -41,6 +50,11 @@ export interface Database {
         Row: Business
         Insert: Omit<Business, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<Business, 'id' | 'created_at'>>
+      }
+      membership_requests: {
+        Row: MembershipRequest
+        Insert: Pick<MembershipRequest, 'phone'>
+        Update: Partial<Omit<MembershipRequest, 'id' | 'created_at'>>
       }
     }
     Views: Record<string, never>

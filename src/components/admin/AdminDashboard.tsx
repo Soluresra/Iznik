@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import type { Category, BusinessWithCategory } from '@/types/database'
+import type { Category, BusinessWithCategory, MembershipRequest } from '@/types/database'
 import BusinessForm from './BusinessForm'
 import CategoryForm from './CategoryForm'
 import {
@@ -18,24 +18,30 @@ import {
   ChevronLeft,
   CalendarDays,
   AlertTriangle,
+  UserPlus,
+  Phone,
+  CheckCircle2,
 } from 'lucide-react'
 import Link from 'next/link'
 
 interface AdminDashboardProps {
   categories: Category[]
   initialBusinesses: BusinessWithCategory[]
+  initialRequests: MembershipRequest[]
   userEmail: string
 }
 
-type ActiveTab = 'businesses' | 'categories'
+type ActiveTab = 'businesses' | 'categories' | 'requests'
 
 export default function AdminDashboard({
   categories: initialCategories,
   initialBusinesses,
+  initialRequests,
   userEmail,
 }: AdminDashboardProps) {
   const [businesses, setBusinesses] = useState(initialBusinesses)
   const [categories, setCategories] = useState(initialCategories)
+  const [requests, setRequests] = useState(initialRequests)
   const [activeTab, setActiveTab] = useState<ActiveTab>('businesses')
   const [editingBusiness, setEditingBusiness] = useState<BusinessWithCategory | null>(null)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
@@ -94,6 +100,29 @@ export default function AdminDashboard({
       .order('display_order')
     if (data) setCategories(data as Category[])
   }
+
+  // Request handlers
+  const handleUpdateRequestStatus = async (id: string, status: string) => {
+    const { error: err } = await supabase
+      .from('membership_requests')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id)
+    if (!err) {
+      setRequests((prev) =>
+        prev.map((r) => r.id === id ? { ...r, status: status as MembershipRequest['status'], updated_at: new Date().toISOString() } : r)
+      )
+    }
+  }
+
+  const handleDeleteRequest = async (id: string) => {
+    if (!confirm('Bu başvuruyu silmek istediğinizden emin misiniz?')) return
+    setDeleting(id)
+    await supabase.from('membership_requests').delete().eq('id', id)
+    setRequests((prev) => prev.filter((r) => r.id !== id))
+    setDeleting(null)
+  }
+
+  const pendingRequestCount = requests.filter((r) => r.status === 'pending').length
 
   const filteredBusinesses = businesses.filter((b) =>
     b.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -186,7 +215,7 @@ export default function AdminDashboard({
 
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
           <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-iznik-50 flex items-center justify-center">
@@ -237,6 +266,17 @@ export default function AdminDashboard({
               </div>
             </div>
           </div>
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                <UserPlus size={20} className="text-amber-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-navy-800">{pendingRequestCount}</p>
+                <p className="text-xs text-gray-500">Bekleyen Başvuru</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -263,6 +303,22 @@ export default function AdminDashboard({
             <FolderOpen size={16} />
             Kategoriler
           </button>
+          <button
+            onClick={() => { setActiveTab('requests'); setSearchTerm('') }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'requests'
+                ? 'bg-white text-navy-800 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <UserPlus size={16} />
+            Üyelik Talepleri
+            {pendingRequestCount > 0 && (
+              <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center leading-tight">
+                {pendingRequestCount}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Toolbar */}
@@ -285,7 +341,7 @@ export default function AdminDashboard({
               <Plus size={18} />
               Yeni İşletme Ekle
             </button>
-          ) : (
+          ) : activeTab === 'categories' ? (
             <button
               onClick={() => { setEditingCategory(null); setShowCategoryForm(true) }}
               className="flex items-center justify-center gap-2 bg-iznik-600 hover:bg-iznik-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
@@ -293,7 +349,7 @@ export default function AdminDashboard({
               <Plus size={18} />
               Yeni Kategori Ekle
             </button>
-          )}
+          ) : null}
         </div>
 
         {/* Content */}
@@ -389,7 +445,7 @@ export default function AdminDashboard({
               </div>
             )}
           </div>
-        ) : (
+        ) : activeTab === 'categories' ? (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             {filteredCategories.length === 0 ? (
               <div className="text-center py-16">
@@ -430,6 +486,75 @@ export default function AdminDashboard({
                       <button
                         onClick={() => handleDeleteCategory(category.id)}
                         disabled={deleting === category.id}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                        title="Sil"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Üyelik Talepleri */
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            {requests.length === 0 ? (
+              <div className="text-center py-16">
+                <p className="text-4xl mb-3">📬</p>
+                <p className="text-gray-500">Henüz başvuru yok.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {requests.map((request) => (
+                  <div
+                    key={request.id}
+                    className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                        <Phone size={18} className="text-amber-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-sm text-navy-800">{request.phone}</h3>
+                        <p className="text-xs text-gray-400">
+                          {new Date(request.created_at).toLocaleDateString('tr-TR')} {new Date(request.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                      {/* Status badge */}
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                        request.status === 'pending' ? 'bg-amber-50 text-amber-700' :
+                        request.status === 'contacted' ? 'bg-blue-50 text-blue-700' :
+                        'bg-green-50 text-green-700'
+                      }`}>
+                        {request.status === 'pending' ? 'Bekliyor' :
+                         request.status === 'contacted' ? 'Arandı' : 'Tamamlandı'}
+                      </span>
+                      {/* Status action buttons */}
+                      {request.status === 'pending' && (
+                        <button
+                          onClick={() => handleUpdateRequestStatus(request.id, 'contacted')}
+                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Arandı olarak işaretle"
+                        >
+                          <Phone size={16} />
+                        </button>
+                      )}
+                      {request.status === 'contacted' && (
+                        <button
+                          onClick={() => handleUpdateRequestStatus(request.id, 'completed')}
+                          className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title="Tamamlandı olarak işaretle"
+                        >
+                          <CheckCircle2 size={16} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDeleteRequest(request.id)}
+                        disabled={deleting === request.id}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                         title="Sil"
                       >

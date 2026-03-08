@@ -1,6 +1,7 @@
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import BusinessListing from '@/components/BusinessListing'
+import MembershipCTA from '@/components/MembershipCTA'
 import { createClient } from '@/lib/supabase/server'
 import type { BusinessWithCategory } from '@/types/database'
 
@@ -95,6 +96,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Üyelik Başvurusu CTA */}
+      <MembershipCTA />
 
       {/* Main Content */}
       <main className="flex-1 py-12">

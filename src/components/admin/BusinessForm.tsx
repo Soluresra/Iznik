@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Category, BusinessWithCategory } from '@/types/database'
-import { Save, Loader2, X, CalendarDays } from 'lucide-react'
+import { Save, Loader2, X, CalendarDays, Upload } from 'lucide-react'
 
 interface BusinessFormProps {
   categories: Category[]
@@ -35,6 +35,9 @@ export default function BusinessForm({
   const [tagInput, setTagInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(business?.image_url || null)
+  const [uploading, setUploading] = useState(false)
 
   const [todayStr, setTodayStr] = useState('')
 
@@ -48,6 +51,47 @@ export default function BusinessForm({
 
   const supabase = createClient()
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Görsel boyutu en fazla 5MB olabilir.')
+      return
+    }
+
+    setImageFile(file)
+    const reader = new FileReader()
+    reader.onloadend = () => setImagePreview(reader.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  const uploadImage = async (): Promise<string | null> => {
+    if (!imageFile) return form.image_url.trim() || null
+
+    setUploading(true)
+    const fileExt = imageFile.name.split('.').pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`
+    const filePath = `businesses/${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('business-images')
+      .upload(filePath, imageFile)
+
+    if (uploadError) {
+      setError('Görsel yüklenirken bir hata oluştu: ' + uploadError.message)
+      setUploading(false)
+      return null
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('business-images')
+      .getPublicUrl(filePath)
+
+    setUploading(false)
+    return publicUrl
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -59,6 +103,12 @@ export default function BusinessForm({
 
     setLoading(true)
 
+    const imageUrl = await uploadImage()
+    if (imageFile && imageUrl === null) {
+      setLoading(false)
+      return
+    }
+
     const payload = {
       name: form.name.trim(),
       description: form.description.trim() || null,
@@ -67,7 +117,7 @@ export default function BusinessForm({
       whatsapp: form.whatsapp.trim() || null,
       instagram: form.instagram.trim() || null,
       address: form.address.trim() || null,
-      image_url: form.image_url.trim() || null,
+      image_url: imageUrl,
       tags: form.tags,
       is_active: form.is_active,
       valid_from: form.valid_from || null,
@@ -194,16 +244,42 @@ export default function BusinessForm({
         </div>
       </div>
 
-      {/* Görsel URL */}
+      {/* Görsel Yükleme */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Görsel URL</label>
-        <input
-          type="url"
-          value={form.image_url}
-          onChange={(e) => updateField('image_url', e.target.value)}
-          className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-iznik-500 focus:ring-2 focus:ring-iznik-200 outline-none text-sm"
-          placeholder="https://..."
-        />
+        <label className="block text-sm font-medium text-gray-700 mb-1">Görsel</label>
+
+        {imagePreview && (
+          <div className="relative mb-3">
+            <img
+              src={imagePreview}
+              alt="Önizleme"
+              className="w-full h-40 object-cover rounded-xl border border-gray-200"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setImageFile(null)
+                setImagePreview(null)
+                updateField('image_url', '')
+              }}
+              className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-lg transition-colors"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        <label className="flex items-center justify-center gap-2 w-full px-4 py-4 rounded-xl border-2 border-dashed border-gray-300 hover:border-iznik-500 cursor-pointer transition-colors text-sm text-gray-500 hover:text-iznik-600">
+          <Upload size={18} />
+          {uploading ? 'Yükleniyor...' : imageFile ? imageFile.name : 'Görsel yüklemek için tıklayın'}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleImageSelect}
+            className="hidden"
+          />
+        </label>
+        <p className="text-xs text-gray-400 mt-1">JPEG, PNG veya WebP. Maksimum 5MB.</p>
       </div>
 
       {/* Anahtar Kelimeler (Tags) */}
