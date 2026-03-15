@@ -116,33 +116,12 @@ export default function HeroBanner({ banners }: HeroBannerProps) {
   // Banner slider
   return (
     <section
-      className="group relative w-full overflow-hidden bg-navy-900"
+      className="group relative w-full overflow-hidden bg-gray-900"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {/*
-        Responsive container:
-        - Mobil (default): 16/9 — gorselin tamami rahat gorunur
-        - Tablet (md): 2/1 — biraz daha genis banner
-        - Desktop (lg): 21/9 — sinematik genis banner
-      */}
-      <div className="relative w-full" style={{ aspectRatio: 'var(--banner-ratio)' }}>
-        <style jsx>{`
-          div[style*="--banner-ratio"] {
-            --banner-ratio: 16/9;
-          }
-          @media (min-width: 768px) {
-            div[style*="--banner-ratio"] {
-              --banner-ratio: 2/1;
-            }
-          }
-          @media (min-width: 1024px) {
-            div[style*="--banner-ratio"] {
-              --banner-ratio: 21/9;
-            }
-          }
-        `}</style>
-
+      {/* Sabit yukseklik + object-contain: gorsel tamamen gorunur */}
+      <div className="relative w-full h-[200px] sm:h-[280px] md:h-[360px] lg:h-[420px]">
         {/* Slider track */}
         <div
           className="absolute inset-0 flex transition-transform duration-500 ease-in-out"
@@ -153,7 +132,7 @@ export default function HeroBanner({ banners }: HeroBannerProps) {
               <img
                 src={banner.image_url}
                 alt={banner.title || 'Banner'}
-                className="absolute inset-0 w-full h-full object-cover"
+                className="w-full h-full object-contain"
                 draggable={false}
               />
             )
@@ -169,7 +148,7 @@ export default function HeroBanner({ banners }: HeroBannerProps) {
                     href={banner.link_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block absolute inset-0"
+                    className="block w-full h-full"
                   >
                     {imgElement}
                   </a>

@@ -2,9 +2,8 @@
 
 import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ImagePlus, X, Loader2, Link as LinkIcon, Crop } from 'lucide-react'
+import { ImagePlus, X, Loader2, Link as LinkIcon } from 'lucide-react'
 import type { Announcement } from '@/types/database'
-import ImageAdjuster from './ImageAdjuster'
 
 interface AnnouncementFormProps {
   announcement?: Announcement | null
@@ -22,8 +21,6 @@ export default function AnnouncementForm({ announcement, onSave, onCancel }: Ann
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [showAdjuster, setShowAdjuster] = useState(false)
-  const [rawImageSrc, setRawImageSrc] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const supabase = createClient()
@@ -38,37 +35,13 @@ export default function AnnouncementForm({ announcement, onSave, onCancel }: Ann
     }
 
     setError('')
+    setImageFile(file)
 
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      setRawImageSrc(ev.target?.result as string)
-      setShowAdjuster(true)
-    }
-    reader.readAsDataURL(file)
-  }
-
-  const handleAdjusterConfirm = (croppedFile: File) => {
-    setImageFile(croppedFile)
     const reader = new FileReader()
     reader.onload = (ev) => {
       setImagePreview(ev.target?.result as string)
     }
-    reader.readAsDataURL(croppedFile)
-    setShowAdjuster(false)
-    setRawImageSrc(null)
-  }
-
-  const handleAdjusterCancel = () => {
-    setShowAdjuster(false)
-    setRawImageSrc(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }
-
-  const openAdjusterForExisting = () => {
-    if (imagePreview) {
-      setRawImageSrc(imagePreview)
-      setShowAdjuster(true)
-    }
+    reader.readAsDataURL(file)
   }
 
   const removeImage = () => {
@@ -167,21 +140,13 @@ export default function AnnouncementForm({ announcement, onSave, onCancel }: Ann
           Banner Görseli <span className="text-red-500">*</span>
         </label>
         {imagePreview ? (
-          <div className="relative rounded-xl overflow-hidden border border-gray-200">
+          <div className="relative rounded-xl overflow-hidden border border-gray-200 bg-gray-900">
             <img
               src={imagePreview}
               alt="Banner onizleme"
-              className="w-full h-48 md:h-64 object-cover"
+              className="w-full h-48 md:h-64 object-contain"
             />
-            <div className="absolute top-2 right-2 flex gap-1.5">
-              <button
-                type="button"
-                onClick={openAdjusterForExisting}
-                className="w-8 h-8 bg-iznik-600 hover:bg-iznik-700 text-white rounded-full flex items-center justify-center shadow-lg transition-colors"
-                title="Görseli ayarla"
-              >
-                <Crop size={14} />
-              </button>
+            <div className="absolute top-2 right-2">
               <button
                 type="button"
                 onClick={removeImage}
@@ -200,7 +165,7 @@ export default function AnnouncementForm({ announcement, onSave, onCancel }: Ann
             <ImagePlus size={40} className="mx-auto text-gray-400 mb-3" />
             <p className="text-sm text-gray-500 font-medium">Banner görseli yükleyin</p>
             <p className="text-xs text-gray-400 mt-1">JPEG, PNG, WebP — Max 20MB</p>
-            <p className="text-xs text-gray-400 mt-1">Önerilen boyut: 1920x500 piksel</p>
+            <p className="text-xs text-gray-400 mt-1">Yatay (geniş) görseller önerilir</p>
           </div>
         )}
         <input
@@ -297,16 +262,6 @@ export default function AnnouncementForm({ announcement, onSave, onCancel }: Ann
           İptal
         </button>
       </div>
-      {/* Image Adjuster Modal */}
-      {showAdjuster && rawImageSrc && (
-        <ImageAdjuster
-          imageSrc={rawImageSrc}
-          onConfirm={handleAdjusterConfirm}
-          onCancel={handleAdjusterCancel}
-          aspectRatio={16 / 9}
-          outputWidth={1920}
-        />
-      )}
     </form>
   )
 }
