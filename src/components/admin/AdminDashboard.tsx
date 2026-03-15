@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import type { Category, BusinessWithCategory, MembershipRequest } from '@/types/database'
+import type { Category, BusinessWithCategory, MembershipRequest, Announcement } from '@/types/database'
 import BusinessForm from './BusinessForm'
 import CategoryForm from './CategoryForm'
+import AnnouncementForm from './AnnouncementForm'
 import {
   LogOut,
   Plus,
@@ -21,6 +22,9 @@ import {
   UserPlus,
   Phone,
   CheckCircle2,
+  Megaphone,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -28,25 +32,30 @@ interface AdminDashboardProps {
   categories: Category[]
   initialBusinesses: BusinessWithCategory[]
   initialRequests: MembershipRequest[]
+  initialAnnouncements: Announcement[]
   userEmail: string
 }
 
-type ActiveTab = 'businesses' | 'categories' | 'requests'
+type ActiveTab = 'businesses' | 'categories' | 'requests' | 'announcements'
 
 export default function AdminDashboard({
   categories: initialCategories,
   initialBusinesses,
   initialRequests,
+  initialAnnouncements,
   userEmail,
 }: AdminDashboardProps) {
   const [businesses, setBusinesses] = useState(initialBusinesses)
   const [categories, setCategories] = useState(initialCategories)
   const [requests, setRequests] = useState(initialRequests)
+  const [announcements, setAnnouncements] = useState(initialAnnouncements)
   const [activeTab, setActiveTab] = useState<ActiveTab>('businesses')
   const [editingBusiness, setEditingBusiness] = useState<BusinessWithCategory | null>(null)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+  const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null)
   const [showBusinessForm, setShowBusinessForm] = useState(false)
   const [showCategoryForm, setShowCategoryForm] = useState(false)
+  const [showAnnouncementForm, setShowAnnouncementForm] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [deleting, setDeleting] = useState<string | null>(null)
   const [today, setToday] = useState('')
@@ -122,6 +131,39 @@ export default function AdminDashboard({
     setDeleting(null)
   }
 
+  // Announcement handlers
+  const handleDeleteAnnouncement = async (id: string) => {
+    if (!confirm('Bu duyuruyu silmek istediğinizden emin misiniz?')) return
+    setDeleting(id)
+    await supabase.from('announcements').delete().eq('id', id)
+    setAnnouncements((prev) => prev.filter((a) => a.id !== id))
+    setDeleting(null)
+  }
+
+  const handleToggleAnnouncementActive = async (id: string, currentActive: boolean) => {
+    const { error: err } = await supabase
+      .from('announcements')
+      .update({ is_active: !currentActive, updated_at: new Date().toISOString() })
+      .eq('id', id)
+    if (!err) {
+      setAnnouncements((prev) =>
+        prev.map((a) => a.id === id ? { ...a, is_active: !currentActive } : a)
+      )
+    }
+  }
+
+  const handleSaveAnnouncement = async () => {
+    setShowAnnouncementForm(false)
+    setEditingAnnouncement(null)
+    const { data } = await supabase
+      .from('announcements')
+      .select('*')
+      .order('display_order')
+    if (data) setAnnouncements(data as Announcement[])
+  }
+
+  const activeAnnouncementCount = announcements.filter((a) => a.is_active).length
+
   const pendingRequestCount = requests.filter((r) => r.status === 'pending').length
 
   const filteredBusinesses = businesses.filter((b) =>
@@ -183,6 +225,31 @@ export default function AdminDashboard({
     )
   }
 
+  // Announcement Form view
+  if (showAnnouncementForm) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-2xl mx-auto px-4 py-8">
+          <button
+            onClick={() => { setShowAnnouncementForm(false); setEditingAnnouncement(null) }}
+            className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-6"
+          >
+            <ChevronLeft size={16} />
+            Geri dön
+          </button>
+          <h2 className="text-2xl font-bold text-navy-800 mb-6">
+            {editingAnnouncement ? 'Duyuru Düzenle' : 'Yeni Duyuru Ekle'}
+          </h2>
+          <AnnouncementForm
+            announcement={editingAnnouncement}
+            onSave={handleSaveAnnouncement}
+            onCancel={() => { setShowAnnouncementForm(false); setEditingAnnouncement(null) }}
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Admin Header */}
@@ -215,7 +282,7 @@ export default function AdminDashboard({
 
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
           <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-iznik-50 flex items-center justify-center">
@@ -277,6 +344,17 @@ export default function AdminDashboard({
               </div>
             </div>
           </div>
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                <Megaphone size={20} className="text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-navy-800">{activeAnnouncementCount}</p>
+                <p className="text-xs text-gray-500">Aktif Duyuru</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -319,6 +397,17 @@ export default function AdminDashboard({
               </span>
             )}
           </button>
+          <button
+            onClick={() => { setActiveTab('announcements'); setSearchTerm('') }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'announcements'
+                ? 'bg-white text-navy-800 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Megaphone size={16} />
+            Duyurular
+          </button>
         </div>
 
         {/* Toolbar */}
@@ -348,6 +437,14 @@ export default function AdminDashboard({
             >
               <Plus size={18} />
               Yeni Kategori Ekle
+            </button>
+          ) : activeTab === 'announcements' ? (
+            <button
+              onClick={() => { setEditingAnnouncement(null); setShowAnnouncementForm(true) }}
+              className="flex items-center justify-center gap-2 bg-iznik-600 hover:bg-iznik-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
+            >
+              <Plus size={18} />
+              Yeni Duyuru Ekle
             </button>
           ) : null}
         </div>
@@ -497,7 +594,7 @@ export default function AdminDashboard({
               </div>
             )}
           </div>
-        ) : (
+        ) : activeTab === 'requests' ? (
           /* Üyelik Talepleri */
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             {requests.length === 0 ? (
@@ -555,6 +652,80 @@ export default function AdminDashboard({
                       <button
                         onClick={() => handleDeleteRequest(request.id)}
                         disabled={deleting === request.id}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                        title="Sil"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Duyurular */
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            {announcements.length === 0 ? (
+              <div className="text-center py-16">
+                <p className="text-4xl mb-3">📢</p>
+                <p className="text-gray-500">Henüz duyuru eklenmemiş.</p>
+                <button
+                  onClick={() => { setEditingAnnouncement(null); setShowAnnouncementForm(true) }}
+                  className="mt-4 inline-flex items-center gap-2 bg-iznik-600 hover:bg-iznik-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                >
+                  <Plus size={18} />
+                  İlk Duyuruyu Ekle
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {announcements.map((announcement) => (
+                  <div
+                    key={announcement.id}
+                    className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-16 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                        <img
+                          src={announcement.image_url}
+                          alt={announcement.title || 'Banner'}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-sm text-navy-800 truncate">
+                          {announcement.title || 'Başlıksız Banner'}
+                        </h3>
+                        <p className="text-xs text-gray-400 truncate">
+                          Sıra: {announcement.display_order}
+                          {announcement.link_url && ` • ${announcement.link_url}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                      <button
+                        onClick={() => handleToggleAnnouncementActive(announcement.id, announcement.is_active)}
+                        className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium transition-colors ${
+                          announcement.is_active
+                            ? 'bg-green-50 text-green-700 hover:bg-green-100'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                        title={announcement.is_active ? 'Pasif yap' : 'Aktif yap'}
+                      >
+                        {announcement.is_active ? <Eye size={12} /> : <EyeOff size={12} />}
+                        {announcement.is_active ? 'Aktif' : 'Pasif'}
+                      </button>
+                      <button
+                        onClick={() => { setEditingAnnouncement(announcement); setShowAnnouncementForm(true) }}
+                        className="p-2 text-gray-400 hover:text-iznik-600 hover:bg-iznik-50 rounded-lg transition-colors"
+                        title="Düzenle"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAnnouncement(announcement.id)}
+                        disabled={deleting === announcement.id}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                         title="Sil"
                       >

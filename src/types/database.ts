@@ -38,6 +38,17 @@ export interface MembershipRequest {
   updated_at: string
 }
 
+export interface Announcement {
+  id: string
+  image_url: string
+  title: string | null
+  link_url: string | null
+  display_order: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -55,6 +66,11 @@ export interface Database {
         Row: MembershipRequest
         Insert: Pick<MembershipRequest, 'phone'>
         Update: Partial<Omit<MembershipRequest, 'id' | 'created_at'>>
+      }
+      announcements: {
+        Row: Announcement
+        Insert: Omit<Announcement, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<Announcement, 'id' | 'created_at'>>
       }
     }
     Views: Record<string, never>
