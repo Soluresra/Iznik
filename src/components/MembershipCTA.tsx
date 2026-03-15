@@ -20,10 +20,10 @@ export default function MembershipCTA() {
 
         <div className="max-w-4xl mx-auto px-4 text-center relative z-10">
           <h2 className="text-xl md:text-2xl font-bold text-white mb-3">
-            Siz de bu sitede yer almak ister misiniz?
+            Siz de bu platformda yer almak ister misiniz?
           </h2>
           <p className="text-iznik-100 text-sm md:text-base mb-6 max-w-xl mx-auto">
-            İşletmenizi İznikle&apos;de listelemek için başvuru yapın, sizi arayalım.
+            Kayıt veya duyuru yayınlamak için bize ulaşın.
           </p>
           <button
             onClick={() => setIsModalOpen(true)}

@@ -614,10 +614,19 @@ export default function AdminDashboard({
                         <Phone size={18} className="text-amber-600" />
                       </div>
                       <div className="min-w-0">
-                        <h3 className="font-semibold text-sm text-navy-800">{request.phone}</h3>
+                        <h3 className="font-semibold text-sm text-navy-800">
+                          {request.first_name || request.last_name
+                            ? `${request.first_name || ''} ${request.last_name || ''}`.trim()
+                            : request.phone}
+                        </h3>
                         <p className="text-xs text-gray-400">
-                          {new Date(request.created_at).toLocaleDateString('tr-TR')} {new Date(request.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                          {request.phone} • {new Date(request.created_at).toLocaleDateString('tr-TR')} {new Date(request.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                         </p>
+                        {request.user_notes && (
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-2 italic">
+                            &ldquo;{request.user_notes}&rdquo;
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0 ml-4">

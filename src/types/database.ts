@@ -31,7 +31,10 @@ export interface BusinessWithCategory extends Business {
 
 export interface MembershipRequest {
   id: string
+  first_name: string | null
+  last_name: string | null
   phone: string
+  user_notes: string | null
   status: 'pending' | 'contacted' | 'completed'
   notes: string | null
   created_at: string
@@ -64,7 +67,7 @@ export interface Database {
       }
       membership_requests: {
         Row: MembershipRequest
-        Insert: Pick<MembershipRequest, 'phone'>
+        Insert: Pick<MembershipRequest, 'phone'> & Partial<Pick<MembershipRequest, 'first_name' | 'last_name' | 'user_notes'>>
         Update: Partial<Omit<MembershipRequest, 'id' | 'created_at'>>
       }
       announcements: {

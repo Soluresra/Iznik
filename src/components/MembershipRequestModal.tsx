@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { X, Phone, Loader2, CheckCircle } from 'lucide-react'
+import { X, Phone, Loader2, CheckCircle, Send } from 'lucide-react'
 
 interface MembershipRequestModalProps {
   isOpen: boolean
@@ -10,7 +10,10 @@ interface MembershipRequestModalProps {
 }
 
 export default function MembershipRequestModal({ isOpen, onClose }: MembershipRequestModalProps) {
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
+  const [userNotes, setUserNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
@@ -34,7 +37,12 @@ export default function MembershipRequestModal({ isOpen, onClose }: MembershipRe
     setLoading(true)
     const { error: insertError } = await supabase
       .from('membership_requests')
-      .insert({ phone: phone.trim() })
+      .insert({
+        phone: phone.trim(),
+        first_name: firstName.trim() || null,
+        last_name: lastName.trim() || null,
+        user_notes: userNotes.trim() || null,
+      })
 
     if (insertError) {
       setError('Başvuru gönderilirken bir hata oluştu. Lütfen tekrar deneyin.')
@@ -47,7 +55,10 @@ export default function MembershipRequestModal({ isOpen, onClose }: MembershipRe
   }
 
   const handleClose = () => {
+    setFirstName('')
+    setLastName('')
     setPhone('')
+    setUserNotes('')
     setError('')
     setSuccess(false)
     onClose()
@@ -94,21 +105,61 @@ export default function MembershipRequestModal({ isOpen, onClose }: MembershipRe
               <div className="w-14 h-14 bg-iznik-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Phone size={24} className="text-iznik-600" />
               </div>
-              <h3 className="text-xl font-bold text-navy-800">Üyelik Başvurusu</h3>
+              <h3 className="text-xl font-bold text-navy-800">Başvuru Formu</h3>
               <p className="text-sm text-gray-500 mt-2">
-                Telefon numaranızı girin, en yakın zamanda sizi arayalım.
+                Bilgilerinizi girin, en yakın zamanda sizi arayalım.
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3.5">
+              {/* İsim Soyisim */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">İsim</label>
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="İsminiz"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-iznik-500 focus:ring-2 focus:ring-iznik-200 outline-none text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Soyisim</label>
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Soyisminiz"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-iznik-500 focus:ring-2 focus:ring-iznik-200 outline-none text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Telefon */}
               <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  Telefon Numarası <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="05XX XXX XX XX"
-                  className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-iznik-500 focus:ring-2 focus:ring-iznik-200 outline-none text-base text-center tracking-wider"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-iznik-500 focus:ring-2 focus:ring-iznik-200 outline-none text-sm"
                   autoFocus
+                />
+              </div>
+
+              {/* Not */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Not</label>
+                <textarea
+                  value={userNotes}
+                  onChange={(e) => setUserNotes(e.target.value)}
+                  placeholder="İşletme kaydı, duyuru yayını veya diğer taleplerinizi yazabilirsiniz..."
+                  rows={3}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 focus:border-iznik-500 focus:ring-2 focus:ring-iznik-200 outline-none text-sm resize-none"
                 />
               </div>
 
@@ -121,12 +172,12 @@ export default function MembershipRequestModal({ isOpen, onClose }: MembershipRe
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 bg-iznik-600 hover:bg-iznik-700 disabled:bg-iznik-400 text-white font-medium py-3.5 rounded-xl transition-colors text-sm"
+                className="w-full flex items-center justify-center gap-2 bg-iznik-600 hover:bg-iznik-700 disabled:bg-iznik-400 text-white font-medium py-3 rounded-xl transition-colors text-sm"
               >
                 {loading ? (
                   <Loader2 size={18} className="animate-spin" />
                 ) : (
-                  <Phone size={18} />
+                  <Send size={16} />
                 )}
                 {loading ? 'Gönderiliyor...' : 'Başvuru Yap'}
               </button>
