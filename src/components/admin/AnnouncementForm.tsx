@@ -2,8 +2,9 @@
 
 import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ImagePlus, X, Loader2, Link as LinkIcon } from 'lucide-react'
+import { ImagePlus, X, Loader2, Link as LinkIcon, Crop } from 'lucide-react'
 import type { Announcement } from '@/types/database'
+import ImageAdjuster from './ImageAdjuster'
 
 interface AnnouncementFormProps {
   announcement?: Announcement | null
@@ -21,6 +22,8 @@ export default function AnnouncementForm({ announcement, onSave, onCancel }: Ann
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [showAdjuster, setShowAdjuster] = useState(false)
+  const [rawImageSrc, setRawImageSrc] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const supabase = createClient()
@@ -29,19 +32,43 @@ export default function AnnouncementForm({ announcement, onSave, onCancel }: Ann
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Dosya boyutu 5MB\'dan kucuk olmalidir.')
+    if (file.size > 20 * 1024 * 1024) {
+      setError('Dosya boyutu 20MB\'dan kucuk olmalidir.')
       return
     }
 
-    setImageFile(file)
     setError('')
 
     const reader = new FileReader()
     reader.onload = (ev) => {
-      setImagePreview(ev.target?.result as string)
+      setRawImageSrc(ev.target?.result as string)
+      setShowAdjuster(true)
     }
     reader.readAsDataURL(file)
+  }
+
+  const handleAdjusterConfirm = (croppedFile: File) => {
+    setImageFile(croppedFile)
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setImagePreview(ev.target?.result as string)
+    }
+    reader.readAsDataURL(croppedFile)
+    setShowAdjuster(false)
+    setRawImageSrc(null)
+  }
+
+  const handleAdjusterCancel = () => {
+    setShowAdjuster(false)
+    setRawImageSrc(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const openAdjusterForExisting = () => {
+    if (imagePreview) {
+      setRawImageSrc(imagePreview)
+      setShowAdjuster(true)
+    }
   }
 
   const removeImage = () => {
@@ -146,13 +173,24 @@ export default function AnnouncementForm({ announcement, onSave, onCancel }: Ann
               alt="Banner onizleme"
               className="w-full h-48 md:h-64 object-cover"
             />
-            <button
-              type="button"
-              onClick={removeImage}
-              className="absolute top-2 right-2 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors"
-            >
-              <X size={16} />
-            </button>
+            <div className="absolute top-2 right-2 flex gap-1.5">
+              <button
+                type="button"
+                onClick={openAdjusterForExisting}
+                className="w-8 h-8 bg-iznik-600 hover:bg-iznik-700 text-white rounded-full flex items-center justify-center shadow-lg transition-colors"
+                title="Görseli ayarla"
+              >
+                <Crop size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={removeImage}
+                className="w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors"
+                title="Görseli kaldır"
+              >
+                <X size={16} />
+              </button>
+            </div>
           </div>
         ) : (
           <div
@@ -161,7 +199,7 @@ export default function AnnouncementForm({ announcement, onSave, onCancel }: Ann
           >
             <ImagePlus size={40} className="mx-auto text-gray-400 mb-3" />
             <p className="text-sm text-gray-500 font-medium">Banner görseli yükleyin</p>
-            <p className="text-xs text-gray-400 mt-1">JPEG, PNG, WebP — Max 5MB</p>
+            <p className="text-xs text-gray-400 mt-1">JPEG, PNG, WebP — Max 20MB</p>
             <p className="text-xs text-gray-400 mt-1">Önerilen boyut: 1920x500 piksel</p>
           </div>
         )}
@@ -259,6 +297,16 @@ export default function AnnouncementForm({ announcement, onSave, onCancel }: Ann
           İptal
         </button>
       </div>
+      {/* Image Adjuster Modal */}
+      {showAdjuster && rawImageSrc && (
+        <ImageAdjuster
+          imageSrc={rawImageSrc}
+          onConfirm={handleAdjusterConfirm}
+          onCancel={handleAdjusterCancel}
+          aspectRatio={16 / 5}
+          outputWidth={1920}
+        />
+      )}
     </form>
   )
 }

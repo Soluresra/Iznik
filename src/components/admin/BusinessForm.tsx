@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Category, BusinessWithCategory } from '@/types/database'
-import { Save, Loader2, X, CalendarDays, Upload } from 'lucide-react'
+import { Save, Loader2, X, CalendarDays, Upload, Crop } from 'lucide-react'
+import ImageAdjuster from './ImageAdjuster'
 
 interface BusinessFormProps {
   categories: Category[]
@@ -38,6 +39,8 @@ export default function BusinessForm({
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(business?.image_url || null)
   const [uploading, setUploading] = useState(false)
+  const [showAdjuster, setShowAdjuster] = useState(false)
+  const [rawImageSrc, setRawImageSrc] = useState<string | null>(null)
 
   const [todayStr, setTodayStr] = useState('')
 
@@ -55,15 +58,40 @@ export default function BusinessForm({
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Görsel boyutu en fazla 5MB olabilir.')
+    if (file.size > 20 * 1024 * 1024) {
+      setError('Görsel boyutu en fazla 20MB olabilir.')
       return
     }
 
-    setImageFile(file)
     const reader = new FileReader()
-    reader.onloadend = () => setImagePreview(reader.result as string)
+    reader.onloadend = () => {
+      setRawImageSrc(reader.result as string)
+      setShowAdjuster(true)
+    }
     reader.readAsDataURL(file)
+  }
+
+  const handleAdjusterConfirm = (croppedFile: File) => {
+    setImageFile(croppedFile)
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setImagePreview(ev.target?.result as string)
+    }
+    reader.readAsDataURL(croppedFile)
+    setShowAdjuster(false)
+    setRawImageSrc(null)
+  }
+
+  const handleAdjusterCancel = () => {
+    setShowAdjuster(false)
+    setRawImageSrc(null)
+  }
+
+  const openAdjusterForExisting = () => {
+    if (imagePreview) {
+      setRawImageSrc(imagePreview)
+      setShowAdjuster(true)
+    }
   }
 
   const uploadImage = async (): Promise<string | null> => {
@@ -255,17 +283,28 @@ export default function BusinessForm({
               alt="Önizleme"
               className="w-full h-40 object-cover rounded-xl border border-gray-200"
             />
-            <button
-              type="button"
-              onClick={() => {
-                setImageFile(null)
-                setImagePreview(null)
-                updateField('image_url', '')
-              }}
-              className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-lg transition-colors"
-            >
-              <X size={14} />
-            </button>
+            <div className="absolute top-2 right-2 flex gap-1.5">
+              <button
+                type="button"
+                onClick={openAdjusterForExisting}
+                className="bg-iznik-600 hover:bg-iznik-700 text-white p-1.5 rounded-lg transition-colors"
+                title="Görseli ayarla"
+              >
+                <Crop size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setImageFile(null)
+                  setImagePreview(null)
+                  updateField('image_url', '')
+                }}
+                className="bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-lg transition-colors"
+                title="Görseli kaldır"
+              >
+                <X size={14} />
+              </button>
+            </div>
           </div>
         )}
 
@@ -279,7 +318,7 @@ export default function BusinessForm({
             className="hidden"
           />
         </label>
-        <p className="text-xs text-gray-400 mt-1">JPEG, PNG veya WebP. Maksimum 5MB.</p>
+        <p className="text-xs text-gray-400 mt-1">JPEG, PNG veya WebP. Maksimum 20MB.</p>
       </div>
 
       {/* Anahtar Kelimeler (Tags) */}
@@ -414,6 +453,16 @@ export default function BusinessForm({
           İptal
         </button>
       </div>
+      {/* Image Adjuster Modal */}
+      {showAdjuster && rawImageSrc && (
+        <ImageAdjuster
+          imageSrc={rawImageSrc}
+          onConfirm={handleAdjusterConfirm}
+          onCancel={handleAdjusterCancel}
+          aspectRatio={4 / 3}
+          outputWidth={800}
+        />
+      )}
     </form>
   )
 }
