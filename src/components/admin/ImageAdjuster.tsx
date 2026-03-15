@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { ZoomIn, ZoomOut, Check, X, RotateCcw, Move } from 'lucide-react'
+import { ZoomIn, ZoomOut, Check, X, RotateCcw, Maximize } from 'lucide-react'
 
 interface ImageAdjusterProps {
   imageSrc: string
   onConfirm: (croppedFile: File) => void
   onCancel: () => void
-  aspectRatio?: number // width/height, e.g. 16/5 for banner, undefined for free
+  aspectRatio?: number // width/height, e.g. 16/5 for banner
   outputWidth?: number // px, default 1920
 }
 
@@ -15,137 +15,229 @@ export default function ImageAdjuster({
   imageSrc,
   onConfirm,
   onCancel,
-  aspectRatio,
+  aspectRatio = 16 / 9,
   outputWidth = 1920,
 }: ImageAdjusterProps) {
-  const [zoom, setZoom] = useState(1)
-  const [position, setPosition] = useState({ x: 0, y: 0 })
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-  const [imgNaturalSize, setImgNaturalSize] = useState({ w: 0, h: 0 })
-  const [processing, setProcessing] = useState(false)
-
   const containerRef = useRef<HTMLDivElement>(null)
   const imgRef = useRef<HTMLImageElement>(null)
 
-  // Container height based on aspect ratio
-  const containerAspect = aspectRatio || 16 / 9
+  // Natural image dimensions
+  const [naturalW, setNaturalW] = useState(0)
+  const [naturalH, setNaturalH] = useState(0)
+  // Container dimensions (px)
+  const [containerW, setContainerW] = useState(0)
+  const [containerH, setContainerH] = useState(0)
+  // Base scale to "cover" the container
+  const [baseScale, setBaseScale] = useState(1)
+  // User zoom multiplier (1 = cover fit, >1 = zoomed in)
+  const [zoomFactor, setZoomFactor] = useState(1)
+  // Image offset from centered position (px in display space)
+  const [offsetX, setOffsetX] = useState(0)
+  const [offsetY, setOffsetY] = useState(0)
+  // Drag state
+  const [dragging, setDragging] = useState(false)
+  const [dragStartX, setDragStartX] = useState(0)
+  const [dragStartY, setDragStartY] = useState(0)
+  const [dragOffsetX, setDragOffsetX] = useState(0)
+  const [dragOffsetY, setDragOffsetY] = useState(0)
+  // Processing
+  const [processing, setProcessing] = useState(false)
+  const [ready, setReady] = useState(false)
 
-  const handleImageLoad = () => {
-    if (imgRef.current) {
-      setImgNaturalSize({
-        w: imgRef.current.naturalWidth,
-        h: imgRef.current.naturalHeight,
-      })
-    }
-  }
+  // Compute container size and base scale when image loads
+  const handleImageLoad = useCallback(() => {
+    const img = imgRef.current
+    const container = containerRef.current
+    if (!img || !container) return
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
-    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y })
-  }, [position])
+    const nw = img.naturalWidth
+    const nh = img.naturalHeight
+    setNaturalW(nw)
+    setNaturalH(nh)
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging) return
-    setPosition({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
-    })
-  }, [isDragging, dragStart])
+    const cw = container.clientWidth
+    const ch = container.clientHeight
+    setContainerW(cw)
+    setContainerH(ch)
 
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false)
+    // Base scale: smallest scale that makes image cover container
+    const scaleW = cw / nw
+    const scaleH = ch / nh
+    const bs = Math.max(scaleW, scaleH)
+    setBaseScale(bs)
+
+    // Reset
+    setZoomFactor(1)
+    setOffsetX(0)
+    setOffsetY(0)
+    setReady(true)
   }, [])
 
-  // Touch support
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0]
-    setIsDragging(true)
-    setDragStart({ x: touch.clientX - position.x, y: touch.clientY - position.y })
-  }, [position])
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return
-    const touch = e.touches[0]
-    setPosition({
-      x: touch.clientX - dragStart.x,
-      y: touch.clientY - dragStart.y,
-    })
-  }, [isDragging, dragStart])
-
-  const handleTouchEnd = useCallback(() => {
-    setIsDragging(false)
-  }, [])
-
-  // Mouse up outside container
+  // Listen for container resize
   useEffect(() => {
-    const handleGlobalMouseUp = () => setIsDragging(false)
-    window.addEventListener('mouseup', handleGlobalMouseUp)
-    window.addEventListener('touchend', handleGlobalMouseUp)
+    const container = containerRef.current
+    if (!container) return
+    const observer = new ResizeObserver(() => {
+      if (imgRef.current && imgRef.current.naturalWidth > 0) {
+        handleImageLoad()
+      }
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [handleImageLoad])
+
+  // Effective scale
+  const scale = baseScale * zoomFactor
+
+  // Displayed image size
+  const dispW = naturalW * scale
+  const dispH = naturalH * scale
+
+  // Clamp offset so image always covers the container
+  const clampOffset = useCallback((ox: number, oy: number, z: number) => {
+    const s = baseScale * z
+    const dw = naturalW * s
+    const dh = naturalH * s
+
+    // Maximum allowed offset (image edge should not go past container edge)
+    const maxOx = Math.max(0, (dw - containerW) / 2)
+    const maxOy = Math.max(0, (dh - containerH) / 2)
+
+    return {
+      x: Math.min(maxOx, Math.max(-maxOx, ox)),
+      y: Math.min(maxOy, Math.max(-maxOy, oy)),
+    }
+  }, [baseScale, naturalW, naturalH, containerW, containerH])
+
+  // --- Drag handlers ---
+  const onDragStart = useCallback((clientX: number, clientY: number) => {
+    setDragging(true)
+    setDragStartX(clientX)
+    setDragStartY(clientY)
+    setDragOffsetX(offsetX)
+    setDragOffsetY(offsetY)
+  }, [offsetX, offsetY])
+
+  const onDragMove = useCallback((clientX: number, clientY: number) => {
+    if (!dragging) return
+    const dx = clientX - dragStartX
+    const dy = clientY - dragStartY
+    const clamped = clampOffset(dragOffsetX + dx, dragOffsetY + dy, zoomFactor)
+    setOffsetX(clamped.x)
+    setOffsetY(clamped.y)
+  }, [dragging, dragStartX, dragStartY, dragOffsetX, dragOffsetY, zoomFactor, clampOffset])
+
+  const onDragEnd = useCallback(() => {
+    setDragging(false)
+  }, [])
+
+  // Mouse events
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    onDragStart(e.clientX, e.clientY)
+  }
+  const handleMouseMove = (e: React.MouseEvent) => onDragMove(e.clientX, e.clientY)
+
+  // Touch events
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0]
+    onDragStart(t.clientX, t.clientY)
+  }
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const t = e.touches[0]
+    onDragMove(t.clientX, t.clientY)
+  }
+
+  // Global mouse/touch up
+  useEffect(() => {
+    const up = () => setDragging(false)
+    window.addEventListener('mouseup', up)
+    window.addEventListener('touchend', up)
     return () => {
-      window.removeEventListener('mouseup', handleGlobalMouseUp)
-      window.removeEventListener('touchend', handleGlobalMouseUp)
+      window.removeEventListener('mouseup', up)
+      window.removeEventListener('touchend', up)
     }
   }, [])
 
-  const handleZoomChange = (newZoom: number) => {
-    const clampedZoom = Math.max(0.5, Math.min(3, newZoom))
-    setZoom(clampedZoom)
-  }
+  // --- Zoom ---
+  const setZoom = useCallback((newZ: number) => {
+    const z = Math.max(1, Math.min(5, newZ))
+    // Re-clamp offset for new zoom
+    const clamped = clampOffset(offsetX, offsetY, z)
+    setZoomFactor(z)
+    setOffsetX(clamped.x)
+    setOffsetY(clamped.y)
+  }, [clampOffset, offsetX, offsetY])
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? -0.08 : 0.08
+    setZoom(zoomFactor + delta)
+  }, [zoomFactor, setZoom])
 
   const handleReset = () => {
-    setZoom(1)
-    setPosition({ x: 0, y: 0 })
+    setZoomFactor(1)
+    setOffsetX(0)
+    setOffsetY(0)
   }
 
+  // --- Fit modes ---
+  const fitWidth = () => {
+    if (!naturalW || !containerW) return
+    const z = (containerW / naturalW) / baseScale
+    setZoom(Math.max(1, z))
+    setOffsetX(0)
+    setOffsetY(0)
+  }
+
+  const fitHeight = () => {
+    if (!naturalH || !containerH) return
+    const z = (containerH / naturalH) / baseScale
+    setZoom(Math.max(1, z))
+    setOffsetX(0)
+    setOffsetY(0)
+  }
+
+  // --- Export ---
   const handleConfirm = async () => {
-    if (!containerRef.current || !imgRef.current) return
+    if (!imgRef.current) return
     setProcessing(true)
 
     try {
-      const container = containerRef.current
-      const containerRect = container.getBoundingClientRect()
       const img = imgRef.current
 
-      // Calculate the visible area in natural image coordinates
-      const imgDisplayWidth = containerRect.width * zoom
-      const imgDisplayHeight = (containerRect.width / (imgNaturalSize.w / imgNaturalSize.h)) * zoom
+      // The image is centered in the container at (containerW/2, containerH/2) + offset
+      // The displayed image's top-left is at:
+      const imgLeft = (containerW - dispW) / 2 + offsetX
+      const imgTop = (containerH - dispH) / 2 + offsetY
 
-      const scaleX = imgNaturalSize.w / imgDisplayWidth
-      const scaleY = imgNaturalSize.h / imgDisplayHeight
+      // The container's viewport in display coordinates: (0,0) to (containerW, containerH)
+      // Map to natural image coordinates:
+      const natPerPx = 1 / scale // natural pixels per display pixel
+      const srcX = (0 - imgLeft) * natPerPx
+      const srcY = (0 - imgTop) * natPerPx
+      const srcW = containerW * natPerPx
+      const srcH = containerH * natPerPx
 
-      // The center of the container maps to position in the image
-      const centerOffsetX = (containerRect.width / 2 - position.x) * scaleX
-      const centerOffsetY = (containerRect.height / 2 - position.y) * scaleY
-
-      const cropWidth = containerRect.width * scaleX
-      const cropHeight = containerRect.height * scaleY
-
-      const sx = Math.max(0, centerOffsetX - cropWidth / 2)
-      const sy = Math.max(0, centerOffsetY - cropHeight / 2)
-      const sw = Math.min(cropWidth, imgNaturalSize.w - sx)
-      const sh = Math.min(cropHeight, imgNaturalSize.h - sy)
+      // Clamp to image bounds
+      const sx = Math.max(0, Math.min(naturalW, srcX))
+      const sy = Math.max(0, Math.min(naturalH, srcY))
+      const sw = Math.min(srcW, naturalW - sx)
+      const sh = Math.min(srcH, naturalH - sy)
 
       // Output dimensions
-      const outWidth = outputWidth
-      const outHeight = Math.round(outWidth / containerAspect)
+      const outW = outputWidth
+      const outH = Math.round(outW / aspectRatio)
 
       const canvas = document.createElement('canvas')
-      canvas.width = outWidth
-      canvas.height = outHeight
+      canvas.width = outW
+      canvas.height = outH
       const ctx = canvas.getContext('2d')!
 
-      // Fill background
       ctx.fillStyle = '#000'
-      ctx.fillRect(0, 0, outWidth, outHeight)
+      ctx.fillRect(0, 0, outW, outH)
 
-      // Draw the cropped portion
-      ctx.drawImage(
-        img,
-        sx, sy, sw, sh,
-        0, 0, outWidth, outHeight
-      )
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH)
 
       canvas.toBlob(
         (blob) => {
@@ -156,131 +248,173 @@ export default function ImageAdjuster({
           setProcessing(false)
         },
         'image/jpeg',
-        0.9
+        0.92
       )
     } catch {
       setProcessing(false)
     }
   }
 
+  // Image position style
+  const imgStyle: React.CSSProperties = ready
+    ? {
+        width: `${dispW}px`,
+        height: `${dispH}px`,
+        position: 'absolute' as const,
+        left: `${(containerW - dispW) / 2 + offsetX}px`,
+        top: `${(containerH - dispH) / 2 + offsetY}px`,
+        transition: dragging ? 'none' : 'all 0.15s ease-out',
+        pointerEvents: 'none' as const,
+      }
+    : {
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover' as const,
+        position: 'absolute' as const,
+        top: 0,
+        left: 0,
+        pointerEvents: 'none' as const,
+      }
+
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-6">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h3 className="text-lg font-bold text-navy-800 flex items-center gap-2">
-            <Move size={20} className="text-iznik-600" />
-            Görseli Ayarla
-          </h3>
-          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 transition-colors">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
+          <div>
+            <h3 className="text-base font-bold text-navy-800">Görseli Ayarla</h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Sürükle: konumla &bull; Kaydır: yakınlaştır &bull; Butonlar: hızlı sığdır
+            </p>
+          </div>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 transition-colors p-1">
             <X size={20} />
           </button>
         </div>
 
-        {/* Image area */}
-        <div className="p-5">
-          <p className="text-xs text-gray-500 mb-3 text-center">
-            Fareyi sürükleyerek konumu, kaydırma ile yakınlaştırmayı ayarlayın
-          </p>
-
+        {/* Canvas area */}
+        <div className="flex-1 overflow-hidden p-4 bg-gray-100 min-h-0">
           <div
             ref={containerRef}
-            className="relative overflow-hidden rounded-xl border-2 border-gray-200 bg-gray-900 mx-auto select-none"
+            className="relative overflow-hidden rounded-xl border-2 border-dashed border-gray-300 bg-gray-900 mx-auto select-none w-full"
             style={{
-              width: '100%',
-              paddingBottom: `${(1 / containerAspect) * 100}%`,
-              cursor: isDragging ? 'grabbing' : 'grab',
+              aspectRatio: `${aspectRatio}`,
+              cursor: dragging ? 'grabbing' : 'grab',
             }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
+            onMouseUp={onDragEnd}
+            onMouseLeave={onDragEnd}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            onWheel={(e) => {
-              e.preventDefault()
-              handleZoomChange(zoom + (e.deltaY > 0 ? -0.1 : 0.1))
-            }}
+            onTouchEnd={onDragEnd}
+            onWheel={handleWheel}
           >
             <img
               ref={imgRef}
               src={imageSrc}
               alt="Ayarlama"
               onLoad={handleImageLoad}
-              className="absolute top-0 left-0 w-full h-auto pointer-events-none"
-              style={{
-                transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
-                transformOrigin: 'center center',
-                transition: isDragging ? 'none' : 'transform 0.1s ease-out',
-              }}
+              style={imgStyle}
               draggable={false}
             />
-            {/* Grid overlay */}
-            <div className="absolute inset-0 pointer-events-none"
-              style={{
-                backgroundImage: `
-                  linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px),
-                  linear-gradient(to bottom, rgba(255,255,255,0.1) 1px, transparent 1px)
-                `,
-                backgroundSize: '33.333% 33.333%',
-              }}
-            />
-          </div>
 
-          {/* Zoom controls */}
-          <div className="flex items-center justify-center gap-4 mt-4">
-            <button
-              type="button"
-              onClick={() => handleZoomChange(zoom - 0.1)}
-              className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
-              title="Uzaklaştır"
-            >
-              <ZoomOut size={18} />
-            </button>
-
-            <div className="flex items-center gap-3 flex-1 max-w-xs">
-              <input
-                type="range"
-                min="0.5"
-                max="3"
-                step="0.05"
-                value={zoom}
-                onChange={(e) => handleZoomChange(parseFloat(e.target.value))}
-                className="flex-1 h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-iznik-600"
-              />
-              <span className="text-xs font-mono text-gray-500 w-12 text-right">
-                {Math.round(zoom * 100)}%
-              </span>
+            {/* Rule of thirds grid */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute left-1/3 top-0 bottom-0 w-px bg-white/20" />
+              <div className="absolute left-2/3 top-0 bottom-0 w-px bg-white/20" />
+              <div className="absolute top-1/3 left-0 right-0 h-px bg-white/20" />
+              <div className="absolute top-2/3 left-0 right-0 h-px bg-white/20" />
             </div>
 
-            <button
-              type="button"
-              onClick={() => handleZoomChange(zoom + 0.1)}
-              className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
-              title="Yakınlaştır"
-            >
-              <ZoomIn size={18} />
-            </button>
+            {/* Corner brackets */}
+            <div className="absolute inset-0 pointer-events-none">
+              {/* Top-left */}
+              <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-white/50" />
+              {/* Top-right */}
+              <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-white/50" />
+              {/* Bottom-left */}
+              <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-white/50" />
+              {/* Bottom-right */}
+              <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-white/50" />
+            </div>
 
-            <button
-              type="button"
-              onClick={handleReset}
-              className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
-              title="Sıfırla"
-            >
-              <RotateCcw size={16} />
-            </button>
+            {/* Zoom indicator */}
+            <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded-md font-mono pointer-events-none">
+              {Math.round(zoomFactor * 100)}%
+            </div>
           </div>
         </div>
 
-        {/* Footer buttons */}
-        <div className="flex gap-3 px-5 py-4 border-t border-gray-100 bg-gray-50">
+        {/* Controls */}
+        <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0">
+          <div className="flex items-center justify-between gap-3">
+            {/* Fit buttons */}
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={fitWidth}
+                className="h-8 px-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-600 transition-colors flex items-center gap-1"
+                title="Genişliğe sığdır"
+              >
+                <Maximize size={13} />
+                Genişlik
+              </button>
+              <button
+                type="button"
+                onClick={fitHeight}
+                className="h-8 px-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-600 transition-colors flex items-center gap-1"
+                title="Yüksekliğe sığdır"
+              >
+                <Maximize size={13} className="rotate-90" />
+                Yükseklik
+              </button>
+              <button
+                type="button"
+                onClick={handleReset}
+                className="h-8 w-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
+                title="Sıfırla"
+              >
+                <RotateCcw size={14} />
+              </button>
+            </div>
+
+            {/* Zoom slider */}
+            <div className="flex items-center gap-2 flex-1 max-w-xs">
+              <button
+                type="button"
+                onClick={() => setZoom(zoomFactor - 0.1)}
+                className="h-8 w-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors flex-shrink-0"
+              >
+                <ZoomOut size={16} />
+              </button>
+              <input
+                type="range"
+                min="1"
+                max="5"
+                step="0.05"
+                value={zoomFactor}
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                className="flex-1 h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer accent-iznik-600"
+              />
+              <button
+                type="button"
+                onClick={() => setZoom(zoomFactor + 0.1)}
+                className="h-8 w-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors flex-shrink-0"
+              >
+                <ZoomIn size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 px-5 py-3.5 border-t border-gray-100 bg-gray-50 flex-shrink-0">
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={processing}
-            className="flex-1 flex items-center justify-center gap-2 bg-iznik-600 hover:bg-iznik-700 disabled:bg-iznik-400 text-white font-medium py-3 rounded-xl transition-colors text-sm"
+            disabled={processing || !ready}
+            className="flex-1 flex items-center justify-center gap-2 bg-iznik-600 hover:bg-iznik-700 disabled:bg-iznik-400 text-white font-medium py-2.5 rounded-xl transition-colors text-sm"
           >
             <Check size={18} />
             {processing ? 'İşleniyor...' : 'Onayla'}
@@ -288,7 +422,7 @@ export default function ImageAdjuster({
           <button
             type="button"
             onClick={onCancel}
-            className="px-6 py-3 border border-gray-200 text-gray-600 hover:bg-gray-100 rounded-xl text-sm font-medium transition-colors"
+            className="px-5 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-100 rounded-xl text-sm font-medium transition-colors"
           >
             İptal
           </button>
