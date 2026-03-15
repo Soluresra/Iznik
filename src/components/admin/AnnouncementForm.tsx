@@ -303,7 +303,7 @@ export default function AnnouncementForm({ announcement, onSave, onCancel }: Ann
           imageSrc={rawImageSrc}
           onConfirm={handleAdjusterConfirm}
           onCancel={handleAdjusterCancel}
-          aspectRatio={16 / 5}
+          aspectRatio={16 / 9}
           outputWidth={1920}
         />
       )}

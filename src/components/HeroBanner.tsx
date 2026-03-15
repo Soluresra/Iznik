@@ -22,7 +22,11 @@ export default function HeroBanner({ banners }: HeroBannerProps) {
     setCurrentIndex((prev) => (prev + 1) % totalSlides)
   }, [totalSlides])
 
-  // Auto-play: 5 saniyede bir geçiş
+  const goToPrev = useCallback(() => {
+    setCurrentIndex((prev) => (prev - 1 + totalSlides) % totalSlides)
+  }, [totalSlides])
+
+  // Auto-play: 5 saniyede bir gecis
   useEffect(() => {
     if (totalSlides <= 1 || isPaused) {
       if (intervalRef.current) clearInterval(intervalRef.current)
@@ -36,7 +40,7 @@ export default function HeroBanner({ banners }: HeroBannerProps) {
     }
   }, [totalSlides, isPaused, goToNext])
 
-  // Banner yoksa fallback hero göster
+  // Banner yoksa fallback hero goster
   if (totalSlides === 0) {
     return (
       <section className="bg-gradient-to-br from-navy-800 via-navy-700 to-iznik-800 text-white py-20 md:py-28 iznik-pattern">
@@ -112,64 +116,92 @@ export default function HeroBanner({ banners }: HeroBannerProps) {
   // Banner slider
   return (
     <section
-      className="relative w-full overflow-hidden bg-navy-900"
+      className="group relative w-full overflow-hidden bg-navy-900"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {/* Slider track */}
-      <div
-        className="flex transition-transform duration-500 ease-in-out"
-        style={{ transform: `translateX(-${currentIndex * 100}%)` }}
-      >
-        {banners.map((banner) => (
-          <div
-            key={banner.id}
-            className="w-full flex-shrink-0 relative"
-          >
-            {banner.link_url ? (
-              <a
-                href={banner.link_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block"
-              >
-                <img
-                  src={banner.image_url}
-                  alt={banner.title || 'Banner'}
-                  className="w-full h-[250px] sm:h-[350px] md:h-[450px] lg:h-[500px] object-cover"
-                />
-              </a>
-            ) : (
+      {/*
+        Responsive container:
+        - Mobil (default): 16/9 — gorselin tamami rahat gorunur
+        - Tablet (md): 2/1 — biraz daha genis banner
+        - Desktop (lg): 21/9 — sinematik genis banner
+      */}
+      <div className="relative w-full" style={{ aspectRatio: 'var(--banner-ratio)' }}>
+        <style jsx>{`
+          div[style*="--banner-ratio"] {
+            --banner-ratio: 16/9;
+          }
+          @media (min-width: 768px) {
+            div[style*="--banner-ratio"] {
+              --banner-ratio: 2/1;
+            }
+          }
+          @media (min-width: 1024px) {
+            div[style*="--banner-ratio"] {
+              --banner-ratio: 21/9;
+            }
+          }
+        `}</style>
+
+        {/* Slider track */}
+        <div
+          className="absolute inset-0 flex transition-transform duration-500 ease-in-out"
+          style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+        >
+          {banners.map((banner) => {
+            const imgElement = (
               <img
                 src={banner.image_url}
                 alt={banner.title || 'Banner'}
-                className="w-full h-[250px] sm:h-[350px] md:h-[450px] lg:h-[500px] object-cover"
+                className="absolute inset-0 w-full h-full object-cover"
+                draggable={false}
               />
-            )}
+            )
 
-            {/* Baslik overlay */}
-            {banner.title && (
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent p-6 md:p-10">
-                <h2 className="text-white text-lg md:text-2xl lg:text-3xl font-bold drop-shadow-lg max-w-4xl">
-                  {banner.title}
-                </h2>
+            return (
+              <div
+                key={banner.id}
+                className="relative w-full h-full flex-shrink-0"
+                style={{ minWidth: '100%' }}
+              >
+                {banner.link_url ? (
+                  <a
+                    href={banner.link_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block absolute inset-0"
+                  >
+                    {imgElement}
+                  </a>
+                ) : (
+                  imgElement
+                )}
+
+                {/* Baslik overlay */}
+                {banner.title && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent px-4 pb-10 pt-16 sm:px-6 md:px-10 md:pb-12 md:pt-20 z-[1]">
+                    <h2 className="text-white text-sm sm:text-lg md:text-2xl lg:text-3xl font-bold drop-shadow-lg max-w-4xl leading-snug">
+                      {banner.title}
+                    </h2>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        ))}
+            )
+          })}
+        </div>
       </div>
 
-      {/* Navigasyon noktaları (dots) */}
+      {/* Navigasyon noktalari (dots) */}
       {totalSlides > 1 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
+        <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 sm:gap-2 z-10">
           {banners.map((_, index) => (
             <button
               key={index}
               onClick={() => goToSlide(index)}
               className={`rounded-full transition-all duration-300 ${
                 index === currentIndex
-                  ? 'w-8 h-3 bg-white'
-                  : 'w-3 h-3 bg-white/50 hover:bg-white/80'
+                  ? 'w-6 sm:w-8 h-2.5 sm:h-3 bg-white shadow-md'
+                  : 'w-2.5 sm:w-3 h-2.5 sm:h-3 bg-white/50 hover:bg-white/80'
               }`}
               aria-label={`Banner ${index + 1}`}
             />
@@ -177,27 +209,25 @@ export default function HeroBanner({ banners }: HeroBannerProps) {
         </div>
       )}
 
-      {/* Sol/Sag oklar (hover'da gorunur) */}
+      {/* Sol/Sag oklar — hover & mobilde her zaman gorunur */}
       {totalSlides > 1 && (
         <>
           <button
-            onClick={() => setCurrentIndex((prev) => (prev - 1 + totalSlides) % totalSlides)}
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity z-10 group-hover:opacity-100"
-            style={{ opacity: isPaused ? 1 : undefined }}
+            onClick={goToPrev}
+            className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/30 sm:bg-black/20 hover:bg-black/50 text-white flex items-center justify-center transition-all z-10 sm:opacity-0 sm:group-hover:opacity-100"
             aria-label="Onceki"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
           <button
-            onClick={() => goToNext()}
-            className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity z-10"
-            style={{ opacity: isPaused ? 1 : undefined }}
+            onClick={goToNext}
+            className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/30 sm:bg-black/20 hover:bg-black/50 text-white flex items-center justify-center transition-all z-10 sm:opacity-0 sm:group-hover:opacity-100"
             aria-label="Sonraki"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
             </svg>
           </button>
         </>
